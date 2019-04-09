@@ -31,7 +31,7 @@
         <Extension Id="com.horizongames.threejsexporter">
             <DispatchInfo>
                 <Resources>
-                    <MainPath>./html/index.html</MainPath>
+                    <MainPath>./public/index.html</MainPath>
 					<ScriptPath>./jsx/core.jsx</ScriptPath>
                     <CEFCommandLine>
 						<Parameter>--enable-media-stream</Parameter>
