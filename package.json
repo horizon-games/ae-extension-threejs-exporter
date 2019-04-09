@@ -1,0 +1,30 @@
+{
+  "name": "ae-extension-threejs-exporter",
+  "version": "0.1.0",
+  "description": "ae-extension-threejs-exporter",
+  "repository": "https://github.com/horizon-games/ae-extension-threejs-exporter",
+  "license": "MIT",
+  "scripts": {
+    "start": "yarn dev",
+    "dev": "webpack-dev-server --mode development --progress --color --config webpack.config.js",
+    "lint": "tslint -c tslint.json src/**/*.ts src/**/*.tsx",
+    "lint:fix": "tslint -c tslint.json --fix 'src/**/*.ts{,x}'"
+  },
+  "dependencies": {
+    "three": "^0.103.0"
+  },
+  "devDependencies": {
+    "express": "^4.16.4",
+    "fork-ts-checker-webpack-plugin": "^1.0.1",
+    "html-webpack-plugin": "^3.2.0",
+    "serve": "^11.0.0",
+    "source-map-loader": "^0.2.4",
+    "ts-loader": "^5.2.1",
+    "tslint": "^5.8.0",
+    "typescript": "3.4.2",
+    "url-loader": "^1.1.2",
+    "webpack": "^4.20.2",
+    "webpack-cli": "^3.1.2",
+    "webpack-dev-server": "^3.1.9"
+  }
+}
