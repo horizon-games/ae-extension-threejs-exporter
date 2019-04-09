@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtensionList>
+    <Extension Id="com.horizongames.threejsexporter">
+        <HostList>
+            <Host Name="DRWV" Port="8201"/>
+            <Host Name="FLPR" Port="8202"/>
+            <Host Name="IDSN" Port="8203"/>
+            <Host Name="AICY" Port="8204"/>
+            <Host Name="ILST" Port="8205"/>
+            <Host Name="PHSP" Port="8206"/>
+            <Host Name="PHXS" Port="8207"/>
+            <Host Name="PPRO" Port="8208"/>
+            <Host Name="PRLD" Port="8209"/>
+            <Host Name="AEFT" Port="8210"/>
+            <Host Name="DEMO" Port="8211"/>
+        </HostList>
+    </Extension>
+</ExtensionList>

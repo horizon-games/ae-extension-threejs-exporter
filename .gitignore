@@ -1,0 +1,10 @@
+.DS_Store
+*/.DS_Store
+**/.DS_Store
+Thumbs.db
+*/Thumbs.db
+**/Thumbs.db
+**/geometry/*.json
+node_modules/
+*.blend1
+**/Adobe\ After\ Effects\ Auto-Save
