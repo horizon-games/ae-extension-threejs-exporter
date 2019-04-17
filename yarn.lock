@@ -4077,6 +4077,11 @@ typedarray@^0.0.6:
   resolved "https://registry.yarnpkg.com/typedarray/-/typedarray-0.0.6.tgz#867ac74e3864187b1d3d47d996a78ec5c8830777"
   integrity sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
 
+types-for-adobe@^1.5.0:
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/types-for-adobe/-/types-for-adobe-1.5.0.tgz#7d2e2e3ecbac9aee8f4e2e5cedc4cf41dc52c748"
+  integrity sha512-pxQnNhi3WX7MqV0xFpE32rOqEFovGNw22b95ThsqOQWMSxfaIEjjzZIlWLDs6ukp8q2a78xSfxrmvxMtZR/+kg==
+
 typescript@3.4.2:
   version "3.4.2"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.4.2.tgz#9ed4e6475d906f589200193be056f5913caed481"

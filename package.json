@@ -21,6 +21,7 @@
     "source-map-loader": "^0.2.4",
     "ts-loader": "^5.2.1",
     "tslint": "^5.8.0",
+    "types-for-adobe": "^1.5.0",
     "typescript": "3.4.2",
     "url-loader": "^1.1.2",
     "webpack": "^4.20.2",
