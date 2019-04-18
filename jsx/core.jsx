@@ -1,22 +1,104 @@
-﻿/**************************************************************************************************
-*
-* ADOBE SYSTEMS INCORPORATED
-* Copyright 2015 Adobe Systems Incorporated
-* All Rights Reserved.
-*
-* NOTICE:  Adobe permits you to use, modify, and distribute this file in accordance with the
-* terms of the Adobe license agreement accompanying it.  If you have received this file from a
-* source other than Adobe, then your use, modification, or distribution of it requires the prior
-* written permission of Adobe.
-*
-**************************************************************************************************/
+﻿/// <reference types="types-for-adobe/AfterEffects/2018"/>"
+var blacklistedMethodNames = [
+  '==',
+  '=>'
+];
 
-function getMessageFromCore() {
-	return 'This is the message from getMessageFromCore';
+var cacheArrs = []
+function makeArrayAccessor(value) {
+  var index = cacheArrs.indexOf(value)
+  if(index === -1) {
+    index = cacheArrs.length;
+    cacheArrs.push(value)
+  }
+  var lines = ["(() => ({ "]
+  for(i in value) {
+    lines.push(makeArrayElementAccessor(index, i))
+  }
+  lines.push("}))()")
+  return lines.join('\n')
+}
+function makeArrayElementAccessor(index, key) {
+  return "get "+key+"(){ \
+    return new Promise(resolve => { \
+      CSLibrary.evalScript( \
+        'describe(cacheArrs["+index+"]["+key+"])', \
+        result => resolve(eval(result)) \
+      ) \
+    }) \
+  },"
 }
 
-var objCore = {};
-objCore.getMessage = function () {
-    return 'message from objCore.getMessage';
+var cacheObjs = []
+function makeObjectAccessor(value) {
+  var index = cacheObjs.indexOf(value)
+  if(index === -1) {
+    index = cacheObjs.length;
+    cacheObjs.push(value)
+  }
+  var lines = ["(() => ({ "]
+  for(propName in value) {
+    if(blacklistedMethodNames.indexOf(propName) === -1) {
+      lines.push(makeObjectPropertyAccessor(index, propName))
+    }
+  }
+  lines.push("}))()")
+  return lines.join('\n')
 }
-write('test jsx')
+function makeObjectPropertyAccessor(index, key) {
+  return "get "+key+"(){ \
+    return new Promise(resolve => { \
+      CSLibrary.evalScript( \
+        'describe(cacheObjs["+index+"]."+key+", cacheObjs["+index+"])', \
+        result => resolve(eval(result)) \
+      ) \
+    }) \
+  },"
+}
+
+var cacheMethods = []
+var cacheMethodScopes = []
+function makeMethodAccessor(value, scope) {
+  var index = cacheMethods.length;
+  cacheMethods.push(value)
+  cacheMethodScopes.push(scope)
+  return "(() => { \
+    return function() { \
+      var args = Array.prototype.slice.call(arguments); \
+      return new Promise(resolve => { \
+        CSLibrary.evalScript( \
+          'describe(cacheMethods["+index+"].apply(cacheMethodScopes["+index+"], ['+args+']))', \
+          result => resolve(eval(result)) \
+        ) \
+      }) \
+    } \
+  })()"
+}
+
+function describe(value, parent) {
+  switch(typeof value) {
+    case 'object':
+      if(value === null) {
+        return "(() => "+value+")()"
+      } else if (Object.prototype.toString.apply(value) === '[object Array]') {
+        return makeArrayAccessor(value)
+      } else {
+        return makeObjectAccessor(value)
+      }
+      break;
+    case 'function':
+      return makeMethodAccessor(value, parent)
+      // return function test() { log('test'); }
+    case "string":
+      return "(() => \""+value+"\")()"
+    default:
+      return "(() => "+value+")()"
+  }
+}
+
+function resetCaches() {
+  cacheArrs.length = 0
+  cacheObjs.length = 0
+  cacheMethods.length = 0
+  cacheMethodScopes.length = 0
+}

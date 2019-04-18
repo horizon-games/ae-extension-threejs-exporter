@@ -29,9 +29,6 @@ CSXSWindowType._MODELESS = "Modeless";
 /** Constant for the CSXS window type ModalDialog. */
 CSXSWindowType._MODAL_DIALOG = "ModalDialog";
 
-/** EvalScript error message */
-EvalScript_ErrMessage = "EvalScript error.";
-
 /**
  * @class Version
  * Defines a version number with major, minor, micro, and special
@@ -522,9 +519,7 @@ CSInterface.prototype.getSystemPath = function(pathType)
  * Evaluates a JavaScript script, which can use the JavaScript DOM
  * of the host application.
  *
- * @param script    The JavaScript script.
- * @param callback  Optional. A callback function that receives the result of execution.
- *          If execution fails, the callback function receives the error message \c EvalScript_ErrMessage.
+ *          If execution fails, the callback function receives the error message \c .
  */
 CSInterface.prototype.evalScript = function(script, callback)
 {
@@ -1206,3 +1201,5 @@ CSInterface.prototype.getWindowTitle = function()
 {
     return window.__adobe_cep__.invokeSync("getWindowTitle", "");
 };
+
+export { UIColor, CSInterface }
