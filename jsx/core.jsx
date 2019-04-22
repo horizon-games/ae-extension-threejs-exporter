@@ -46,10 +46,11 @@ function makeObjectAccessor(value) {
   return lines.join('\n')
 }
 function makeObjectPropertyAccessor(index, key) {
+  var caster = key === 'file' ? '.fsName' : ''
   return "get "+key+"(){ \
     return new Promise(resolve => { \
       CSLibrary.evalScript( \
-        'describe(cacheObjs["+index+"]."+key+", cacheObjs["+index+"])', \
+        'describe(cacheObjs["+index+"]."+key+caster+", cacheObjs["+index+"])', \
         result => resolve(eval(result)) \
       ) \
     }) \

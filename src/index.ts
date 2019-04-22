@@ -1,7 +1,7 @@
 /// <reference types="types-for-adobe/AfterEffects/2018"/>"
 import { CSInterface, UIColor } from './vendor/CSInterface'
 
-import { PCFShadowMap, WebGLRenderer, Scene, PerspectiveCamera, Mesh, SphereBufferGeometry, MeshBasicMaterial, OrthographicCamera, Camera, Color, PlaneGeometry, Side, BackSide, Object3D, PlaneBufferGeometry, Vector3, Matrix4, Euler, DoubleSide } from 'three'
+import { PCFShadowMap, WebGLRenderer, Scene, PerspectiveCamera, Mesh, SphereBufferGeometry, MeshBasicMaterial, OrthographicCamera, Camera, Color, BackSide, Object3D, PlaneBufferGeometry, Vector3, Matrix4, Euler, MeshBasicMaterialParameters, ImageUtils } from 'three'
 
 const CSLibrary = new CSInterface()
 
@@ -28,6 +28,8 @@ window.onload = function() {
 
 let afterEffects: any
 
+let active = false
+
 const __degToRad = Math.PI / 180
 const __radToDeg = 1 / __degToRad
 const __tempMatrix = new Matrix4()
@@ -41,14 +43,14 @@ function decorateMethodAfter(
   obj: any,
   methodName: string,
   newMethod: () => void
-  ) {
+) {
   const oldMethod = obj[methodName] as () => void
   obj[methodName] = (...args: any[]) => {
     const result = oldMethod.apply(obj, args)
     newMethod.apply(obj, args)
     return result
   }
-  }
+}
 
 const renderer = new WebGLRenderer({
   antialias: true,
@@ -65,7 +67,7 @@ class AERectGeometry extends PlaneBufferGeometry {
     let array = this.attributes.position.array as number[]
     for (let i = 0; i < array.length; i+=3) {
       array[i] += halfWidth
-      array[i+1] += halfHeight            
+      array[i+1] += halfHeight          
     }
   }
 }
@@ -76,12 +78,12 @@ function checkWebGLSupport() {
     return (
     !!(window as any).WebGLRenderingContext &&
     (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
-    )
+   )
   } catch (e) {
     return false
   }
   }
-  
+
 if (checkWebGLSupport()) {
   // Add Renderer
   renderer.setSize(window.innerWidth, window.innerHeight)
@@ -89,7 +91,7 @@ if (checkWebGLSupport()) {
   } else {
   error('No WebGL Support')
   }
-  
+
 const attributeValues: string[] = [
   '-moz-crisp-edges',
   '-webkit-crisp-edges',
@@ -135,11 +137,9 @@ async function convertCamera(layer: CameraLayer, comp: CompItem) {
   const zoom = await getAEProperty(cameraAe, 'Zoom')
   const angle = Math.atan2((await comp.height) * 0.5, await zoom.value)
   const degs = angle * 2 * __radToDeg
-  // debugger
   const cam = new PerspectiveCamera(degs, await comp.width / await comp.height, 10, 10000)
   decorateMethodAfter(cam, 'updateProjectionMatrix', () => {
     cam.projectionMatrix.scale(new Vector3(1, -1, -1))
-    debugger
   })
   cam.updateProjectionMatrix()
   return cam
@@ -180,9 +180,20 @@ function pluralize(str: string) {
     return str + 's'
   }
 }
+
 async function getAEProperty(base: any, namePath: string) {
   return findCollectionItemPath(base, 'property', namePath)
 }
+
+async function hasAEProperty(base: any, namePath: string) {
+  try {
+    await findCollectionItemPath(base, 'property', namePath)
+    return true
+  } catch (err) {
+    return false
+  }
+}
+
 
 async function findCollectionItemPath(base: any, collectionName: string, namePath: string) {
   const names = namePath.split('.')
@@ -244,6 +255,27 @@ function __queueSubComp(comp: CompItem, scene: Scene) {
   __subCompsQueue.push(new QueuedCompScene(comp, scene))
 }
 
+async function createLayerMesh(avLayer: AVLayer, source: any, isLayer3D: boolean, content: Color | string, transparent: boolean = false) {
+  const geometry = new AERectGeometry(await source.width, await source.height)
+  // const opacity = await findCollectionItemPath(avLayer, "property", "Layer Styles.Blending Options.Advanced Blending.Fill Opacity")
+  const opacity = await getAEProperty(avLayer, 'Transform.Opacity')
+  const opacityVal = (await opacity.value) * 0.01
+  const params: MeshBasicMaterialParameters = {
+    side: BackSide,
+    transparent: opacityVal < 1 || transparent,
+    opacity: opacityVal,
+    depthTest: isLayer3D,
+    depthWrite: isLayer3D
+  }
+  if (content instanceof Color) {
+    params.color = content
+  } else {
+    params.map = ImageUtils.loadTexture('file://'+content, undefined, tex => tex.flipY = false)
+  }
+  const mesh = new Mesh(geometry, new MeshBasicMaterial(params))
+  return mesh
+}
+
 async function loadCompScene(scene: Scene, comp: CompItem) {
   const defaultCamera2D = camera = new OrthographicCamera(0, await comp.width, 0, await comp.height, -1000, 1000)
   scene.add(defaultCamera2D)
@@ -274,34 +306,29 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
         node = subScene
       } else {
         const mainSource = await source.mainSource
-        if (mainSource && mainSource.hasOwnProperty('color')) {
-          const solidSource = mainSource as SolidSource
-          const aeColor = await solidSource.color
-          const color = new Color().fromArray(await syncArray(aeColor))
-          const geometry = new AERectGeometry(await source.width, await source.height)
-          // const opacity = await findCollectionItemPath(avLayer, "property", "Layer Styles.Blending Options.Advanced Blending.Fill Opacity")
-          const opacity = await getAEProperty(avLayer, 'Transform.Opacity')
-          const opacityVal = (await opacity.value) * 0.01
-          const mesh = new Mesh(geometry, new MeshBasicMaterial({
-            color, 
-            side: BackSide,
-            transparent: opacityVal < 1,
-            opacity: opacityVal,
-            depthTest: isLayer3D,
-            depthWrite: isLayer3D
-          }))
-          node = mesh
-        } else {
-          error('Unsupported type')
-          node = null
+        if (mainSource) {
+          if (mainSource.hasOwnProperty('color')) {
+            const solidSource = mainSource as SolidSource
+            const aeColor = await solidSource.color
+            const color = new Color().fromArray(await syncArray(aeColor))
+            node = await createLayerMesh(avLayer, source, isLayer3D, color)
+          } else if (mainSource.hasOwnProperty('file')) {
+            const footageSource = mainSource as FootageSource
+            node = await createLayerMesh(avLayer, source, isLayer3D, await mainSource.file, await footageSource.hasAlpha)
+          } else {
+            error('Unsupported source type')
+            node = null
+          }
         }
       }
-    } else {
+    } else if (await hasAEProperty(layer, 'Camera Options')) {
       const cam = await convertCamera(layer as CameraLayer, comp)
       node = cam
       isLayer3D = true
       scene.add(cam)
       activeCameras[0] = cam
+    } else {
+      error('Unsupported layer type')
     }
     if (node) {
       scene.add(node)
@@ -377,7 +404,7 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
 function loop() {
   if (afterEffects && !_initedComp) initAfterEffects()
   sphere.rotation.y += 0.001
-  if (rootScene.userData.activeCameras) {
+  if (rootScene.userData.activeCameras && active) {
     rootScene.userData.activeCameras.forEach(camera => {
       if (camera) {
         renderer.render(rootScene, camera)
@@ -399,4 +426,20 @@ CSLibrary.evalScript('resetCaches()', result => {
   })
 })
 
-// setTimeout(testLayer, 2000)
+window.addEventListener('focus', event => {
+  const obj = document.querySelector('#isActiveExt')!
+  if (!parseInt(obj['value'])) {
+    obj['value'] = 1
+    active = true
+    console.log('Extension is active!')
+  }
+})
+
+window.addEventListener('blur', event => {
+  const obj = document.querySelector('#isActiveExt')!
+  if (parseInt(obj['value'])) {
+    obj['value'] = 0
+    active = false
+    console.log('Extension is deactive!')
+  }
+})
