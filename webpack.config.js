@@ -49,7 +49,8 @@ module.exports = {
       include: [
         path.resolve(process.cwd(), 'src'),
       ]
-    }, {
+    },
+    {
       test: /\.(jpe?g|png|gif|svg)$/i,
       use: [{
         loader: 'url-loader',
@@ -57,6 +58,21 @@ module.exports = {
           limit: 8192000
         }
       }]
+    },
+    {
+      test: /\.(glsl|frag|vert)$/,
+      exclude: /node_modules/,
+      loader: 'glslify-import-loader'
+    },
+    {
+      test: /\.(glsl|frag|vert)$/,
+      exclude: /node_modules/,
+      loader: 'raw-loader'
+    },
+    {
+      test: /\.(glsl|frag|vert)$/,
+      exclude: /node_modules/,
+      loader: 'glslify-loader'
     }]
   },
   resolve: {

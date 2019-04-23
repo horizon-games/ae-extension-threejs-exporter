@@ -1,76 +1,39 @@
 {
   "defaultSeverity": "warning",
-  "linterOptions": {
-    "exclude": [
-    ]
-  },
+  "rulesDirectory": [
+    "./node_modules/tslint-lines-between-class-members"
+  ],
   "rules": {
     "class-name": true,
-    "comment-format": [
-      false,
-      "check-space"
-    ],
-    "curly": false,
-    "indent": [
-      true,
-      "spaces"
-    ],
+    "comment-format": false,
     "interface-name": false,
     "jsdoc-format": true,
-    "no-consecutive-blank-lines": false,
-    "no-debugger": true,
+    "lines-between-class-members": false,
+    "max-classes-per-file": false,
+    "member-access": [true, "no-public"],
+    "no-bitwise": false,
+    "no-console": false,
+    "no-debugger": false,
     "no-duplicate-variable": true,
-    "no-eval": true,
+    "no-eval": false,
+    "no-implicit-dependencies": false,
     "no-internal-module": true,
-    "no-trailing-whitespace": false,
     "no-shadowed-variable": false,
     "no-switch-case-fall-through": true,
-    "no-unused-expression": false,
-    "no-use-before-declare": false,
+    "no-unused-expression": [true, "allow-tagged-template"],
     "no-var-keyword": true,
-    "one-line": [
-      true,
-      "check-open-brace",
-      "check-whitespace",
-      "check-catch"
-    ],
-    "quotemark": [
-      true,
-      "single",
-      "jsx-double"
-    ],
-    "semicolon": [true, "never"],
-    "trailing-comma": [
+    "no-submodule-imports": false,
+    "object-literal-sort-keys": false,
+    "triple-equals": [true, "allow-null-check"],
+    "variable-name": [true, "ban-keywords"],
+    "ordered-imports": [
       true,
       {
-        "multiline": "never",
-        "singleline": "never"
+        "import-sources-order": "case-insensitive",
+        "named-imports-order": "case-insensitive",
+        "grouped-imports": true
       }
-    ],
-    "triple-equals": [
-      true,
-      "allow-null-check"
-    ],
-    "typedef-whitespace": [
-      true,
-      {
-        "call-signature": "nospace",
-        "index-signature": "nospace",
-        "parameter": "nospace",
-        "property-declaration": "nospace",
-        "variable-declaration": "nospace"
-      }
-    ],
-    "variable-name": [
-      true,
-      "ban-keywords"
-    ],
-    "whitespace": [
-      true,
-      "check-branch",
-      "check-decl",
-      "check-separator",
-      "check-type"
     ]
-  }
+  },
+  "extends": ["tslint:latest", "tslint-config-prettier"]
 }

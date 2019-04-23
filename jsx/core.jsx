@@ -76,7 +76,10 @@ function makeMethodAccessor(value, scope) {
   })()"
 }
 
+var lastDescribed = undefined
+
 function describe(value, parent) {
+  lastDescribed = value
   switch(typeof value) {
     case 'object':
       if(value === null) {

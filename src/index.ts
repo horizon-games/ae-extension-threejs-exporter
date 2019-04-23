@@ -1,34 +1,66 @@
 /// <reference types="types-for-adobe/AfterEffects/2018"/>"
-import { CSInterface, UIColor } from './vendor/CSInterface'
+import {
+  BackSide,
+  Camera,
+  Color,
+  Euler,
+  ImageUtils,
+  MaterialParameters,
+  Matrix4,
+  Mesh,
+  MeshBasicMaterial,
+  MeshBasicMaterialParameters,
+  Object3D,
+  OrthographicCamera,
+  PCFShadowMap,
+  PerspectiveCamera,
+  PlaneBufferGeometry,
+  Scene,
+  SphereBufferGeometry,
+  Texture,
+  Vector3,
+  Vector4,
+  WebGLRenderer
+} from 'three'
 
-import { PCFShadowMap, WebGLRenderer, Scene, PerspectiveCamera, Mesh, SphereBufferGeometry, MeshBasicMaterial, OrthographicCamera, Camera, Color, BackSide, Object3D, PlaneBufferGeometry, Vector3, Matrix4, Euler, MeshBasicMaterialParameters, ImageUtils } from 'three'
+import {
+  SpritesheetMaterialParameters,
+  SpritesheetMeshBasicMaterial
+} from './materials/SpritesheetMeshBasicMaterial'
+import { Matrix2DUniformInterface } from './math/Matrix2DUniformInterface'
+import { CSInterface, UIColor } from './vendor/CSInterface'
 
 const CSLibrary = new CSInterface()
 
 function changeThemeColor() {
-  let hostEnv = CSLibrary.getHostEnvironment()
+  const hostEnv = CSLibrary.getHostEnvironment()
   let UIColorObj = new UIColor()
 
   UIColorObj = hostEnv.appSkinInfo.appBarBackgroundColor
-  let red = Math.round(UIColorObj.color.red)
-  let green = Math.round(UIColorObj.color.green)
-  let blue = Math.round(UIColorObj.color.blue)
-  let alpha = Math.round(UIColorObj.color.alpha)
-  let colorRGB = '#' + red.toString(16) + green.toString(16) + blue.toString(16)
+  const red = Math.round(UIColorObj.color.red)
+  const green = Math.round(UIColorObj.color.green)
+  const blue = Math.round(UIColorObj.color.blue)
+  const alpha = Math.round(UIColorObj.color.alpha)
+  const colorRGB =
+    '#' + red.toString(16) + green.toString(16) + blue.toString(16)
 
   const bodyElement = window!.document!.getElementById('index_body')!
   bodyElement.style.backgroundColor = colorRGB
   bodyElement.style.opacity = (alpha / 255).toString()
 }
 
-window.onload = function() {
-  CSLibrary.addEventListener('com.adobe.csxs.events.ThemeColorChanged', event => changeThemeColor())
+window.onload = () => {
+  CSLibrary.addEventListener('com.adobe.csxs.events.ThemeColorChanged', event =>
+    changeThemeColor()
+  )
   changeThemeColor()
 }
 
 let afterEffects: any
 
 let active = false
+
+const __useAtlases = true
 
 const __degToRad = Math.PI / 180
 const __radToDeg = 1 / __degToRad
@@ -37,7 +69,6 @@ function error(message: string) {
   debugger
   throw new Error(message)
 }
-
 
 function decorateMethodAfter(
   obj: any,
@@ -64,10 +95,10 @@ class AERectGeometry extends PlaneBufferGeometry {
     super(width, height)
     const halfWidth = width * 0.5
     const halfHeight = height * 0.5
-    let array = this.attributes.position.array as number[]
-    for (let i = 0; i < array.length; i+=3) {
+    const array = this.attributes.position.array as number[]
+    for (let i = 0; i < array.length; i += 3) {
       array[i] += halfWidth
-      array[i+1] += halfHeight          
+      array[i + 1] += halfHeight
     }
   }
 }
@@ -76,21 +107,21 @@ function checkWebGLSupport() {
   try {
     const canvas = document.createElement('canvas')
     return (
-    !!(window as any).WebGLRenderingContext &&
-    (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
-   )
+      !!(window as any).WebGLRenderingContext &&
+      (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
+    )
   } catch (e) {
     return false
   }
-  }
+}
 
 if (checkWebGLSupport()) {
   // Add Renderer
   renderer.setSize(window.innerWidth, window.innerHeight)
   document.body.appendChild(renderer.domElement)
-  } else {
+} else {
   error('No WebGL Support')
-  }
+}
 
 const attributeValues: string[] = [
   '-moz-crisp-edges',
@@ -105,7 +136,7 @@ attributeValues.forEach(v => {
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = PCFShadowMap
 renderer.gammaOutput = true
-renderer.gammaFactor = 2.2
+renderer.gammaFactor = 1.0 //2.2
 renderer.autoClear = false
 renderer.setPixelRatio(window.devicePixelRatio)
 let rootScene = new Scene()
@@ -120,7 +151,10 @@ let camera: Camera = new PerspectiveCamera(
 rootScene.add(camera)
 rootScene.userData.activeCameras = [camera]
 
-const sphere = new Mesh(new SphereBufferGeometry(500, 64, 32), new MeshBasicMaterial({color: 0xffffff, wireframe: true}))
+const sphere = new Mesh(
+  new SphereBufferGeometry(500, 64, 32),
+  new MeshBasicMaterial({ color: 0xffffff, wireframe: true })
+)
 rootScene.add(sphere)
 function onResize() {
   renderer.setSize(window.innerWidth, window.innerHeight)
@@ -137,7 +171,12 @@ async function convertCamera(layer: CameraLayer, comp: CompItem) {
   const zoom = await getAEProperty(cameraAe, 'Zoom')
   const angle = Math.atan2((await comp.height) * 0.5, await zoom.value)
   const degs = angle * 2 * __radToDeg
-  const cam = new PerspectiveCamera(degs, await comp.width / await comp.height, 10, 10000)
+  const cam = new PerspectiveCamera(
+    degs,
+    (await comp.width) / (await comp.height),
+    10,
+    10000
+  )
   decorateMethodAfter(cam, 'updateProjectionMatrix', () => {
     cam.projectionMatrix.scale(new Vector3(1, -1, -1))
   })
@@ -147,7 +186,7 @@ async function convertCamera(layer: CameraLayer, comp: CompItem) {
 
 async function syncArray(asyncArr: any[]) {
   if (!asyncArr.hasOwnProperty('length')) {
-    return await syncArrayLike(asyncArr)
+    return syncArrayLike(asyncArr)
   }
   const arr: any[] = []
   for (let i = 0; i < asyncArr.length; i++) {
@@ -158,23 +197,23 @@ async function syncArray(asyncArr: any[]) {
 
 async function syncArrayLike(asyncArr: any[]) {
   const arr: any[] = []
-  for (let i = 0; i < 3; i++) {
-    try {
-      arr[i] = await asyncArr[i]
-    } catch (err) {
+  for (let i = 0; i < 99; i++) {
+    const value = await asyncArr[i]
+    if (value !== undefined) {
+      arr[i] = value
+    } else {
       break
     }
   }
   return arr
 }
 
-
 function capitalize(str: string) {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
 function pluralize(str: string) {
-  if (str.charAt(str.length-1) === 'y') {
+  if (str.charAt(str.length - 1) === 'y') {
     return str.slice(0, str.length - 1) + 'ies'
   } else {
     return str + 's'
@@ -194,8 +233,11 @@ async function hasAEProperty(base: any, namePath: string) {
   }
 }
 
-
-async function findCollectionItemPath(base: any, collectionName: string, namePath: string) {
+async function findCollectionItemPath(
+  base: any,
+  collectionName: string,
+  namePath: string
+) {
   const names = namePath.split('.')
   let cursor = base
   while (names.length > 0) {
@@ -204,25 +246,36 @@ async function findCollectionItemPath(base: any, collectionName: string, namePat
   return cursor
 }
 
-async function findCollectionItem(base: any, collectionName: string, name: string) {
+async function findCollectionItem(
+  base: any,
+  collectionName: string,
+  name: string
+) {
   const numName = 'num' + pluralize(capitalize(collectionName))
-  if (!base || !base.hasOwnProperty(numName) || !base.hasOwnProperty(collectionName)) {
+  if (
+    !base ||
+    !base.hasOwnProperty(numName) ||
+    !base.hasOwnProperty(collectionName)
+  ) {
     error('Collection is invalid.')
   }
   const collection = (await base[collectionName]) as (i: number) => any
   const num = await base[numName]
   const triedNames: string[] = []
   for (let i = 1; i <= num; i++) {
-    const item = await(collection(i))
+    const item = await collection(i)
     const tempName = await item.name
     if (tempName === name) {
       return item
     }
     triedNames.push(tempName)
   }
-  let messageLines = ['Collection does not contain item named ' + name, 'found the following Properties:']
-  for (let i = 0; i < triedNames.length; i++) {
-    messageLines.push('  ' + triedNames[i])
+  const messageLines = [
+    'Collection does not contain item named ' + name,
+    'found the following Properties:'
+  ]
+  for (const triedName of triedNames) {
+    messageLines.push('  ' + triedName)
   }
   error(messageLines.join('\n'))
 }
@@ -230,9 +283,12 @@ async function findCollectionItem(base: any, collectionName: string, name: strin
 let _initedComp = false
 async function initAfterEffects() {
   _initedComp = true
-  const maybeComp = await (await (await afterEffects as Application).project).activeItem
-  if (!maybeComp || await maybeComp.typeName !== 'Composition') {
-    console.warn('activeItem is not a Composition. Select a Composition and try again.')
+  const maybeComp = await (await ((await afterEffects) as Application).project)
+    .activeItem
+  if (!maybeComp || (await maybeComp.typeName) !== 'Composition') {
+    console.warn(
+      'activeItem is not a Composition. Select a Composition and try again.'
+    )
     return
   }
   const scene = new Scene()
@@ -254,32 +310,147 @@ const __subCompsQueue: QueuedCompScene[] = []
 function __queueSubComp(comp: CompItem, scene: Scene) {
   __subCompsQueue.push(new QueuedCompScene(comp, scene))
 }
+const __textureCache = new Map<string, Texture>()
+function __getCachedTexture(path: string) {
+  if (!__textureCache.has(path)) {
+    __textureCache.set(
+      path,
+      ImageUtils.loadTexture(
+        'file://' + path,
+        undefined,
+        tex => (tex.flipY = false)
+      )
+    )
+  }
+  return __textureCache.get(path)!
+}
 
-async function createLayerMesh(avLayer: AVLayer, source: any, isLayer3D: boolean, content: Color | string, transparent: boolean = false) {
-  const geometry = new AERectGeometry(await source.width, await source.height)
+async function createLayerMesh(
+  avLayer: AVLayer,
+  source: any,
+  isLayer3D: boolean,
+  content: Color | string,
+  transparent: boolean = false
+) {
+  const sourceWidth = await source.width
+  const sourceHeight = await source.height
+  const geometry = new AERectGeometry(sourceWidth, sourceHeight)
   // const opacity = await findCollectionItemPath(avLayer, "property", "Layer Styles.Blending Options.Advanced Blending.Fill Opacity")
   const opacity = await getAEProperty(avLayer, 'Transform.Opacity')
   const opacityVal = (await opacity.value) * 0.01
-  const params: MeshBasicMaterialParameters = {
+  const params: MaterialParameters = {
     side: BackSide,
     transparent: opacityVal < 1 || transparent,
     opacity: opacityVal,
     depthTest: isLayer3D,
     depthWrite: isLayer3D
   }
+
+  let mesh: Mesh | undefined
+
   if (content instanceof Color) {
-    params.color = content
+    const basicParams = params as MeshBasicMaterialParameters
+    basicParams.color = content
+    mesh = new Mesh(geometry, new MeshBasicMaterial(basicParams))
   } else {
-    params.map = ImageUtils.loadTexture('file://'+content, undefined, tex => tex.flipY = false)
+    if (__useAtlases) {
+      const spriteSheetParams = params as SpritesheetMaterialParameters
+      const usedIn = (await syncArray(await source.usedIn)) as CompItem[]
+      let atlasComp: CompItem | undefined
+      let indexToRemember = -1
+      for (let i = 0; i < usedIn.length && !atlasComp; i++) {
+        if ((await usedIn[i].name).indexOf('-atlas') !== -1) {
+          atlasComp = usedIn[i]
+          indexToRemember = i
+        }
+      }
+      if (atlasComp) {
+        const atlasWidth = await atlasComp.width
+        const atlasHeight = await atlasComp.height
+        const projPath = await (await afterEffects.project).file
+        const atlasCompName = await atlasComp.name
+        const atlasPath = projPath + '.' + atlasCompName + '.png'
+        if (!__textureCache.has(atlasPath)) {
+          console.log('rendering ' + atlasPath)
+          await (await source.usedIn)[indexToRemember]
+          await new Promise<boolean>(resolve => {
+            CSLibrary.evalScript(
+              'var tempFile = new File("' +
+                atlasPath +
+                '"); \
+              lastDescribed.saveFrameToPng(0, tempFile);',
+              result => {
+                console.log(result)
+                setTimeout(() => {
+                  resolve(true)
+                }, 1000)
+              }
+            )
+          })
+        }
+        spriteSheetParams.mapTexture = __getCachedTexture(atlasPath)
+        const numAtlasLayers = await atlasComp.numLayers
+        let atlasLayer: AVLayer | undefined
+        for (let i = 1; i <= numAtlasLayers && !atlasLayer; i++) {
+          const maybeAtlasLayer = (await (await atlasComp.layer)(i)) as AVLayer
+          const atlasLayerSource = await maybeAtlasLayer.source
+          if (
+            (await atlasLayerSource.file) === (await source.file) &&
+            (await atlasLayerSource.name) === (await source.name)
+          ) {
+            atlasLayer = maybeAtlasLayer
+          }
+        }
+
+        const transform = await getAEProperty(atlasLayer, 'Transform')
+        const anchor = await getAEProperty(transform, 'Anchor Point')
+        const anchorArr = await syncArray(await anchor.value)
+        const position = await getAEProperty(transform, 'Position')
+        const posArr = await syncArray(await position.value)
+        const scale = await getAEProperty(transform, 'Scale')
+        const scaleArr = await syncArray(await scale.value)
+        const rotation = await getAEProperty(transform, 'Rotation')
+        const angle = await rotation.value
+        const mat23 = new Matrix2DUniformInterface()
+        mat23.compose(
+          posArr[0] / atlasWidth,
+          posArr[1] / atlasHeight,
+          scaleArr[0] * 0.01 * (sourceWidth / atlasWidth),
+          scaleArr[1] * 0.01 * (sourceHeight / atlasHeight),
+          angle,
+          anchorArr[0] / sourceWidth,
+          anchorArr[1] / sourceHeight
+        )
+        // debugger
+        spriteSheetParams.matrix = mat23
+        mesh = new Mesh(
+          geometry,
+          new SpritesheetMeshBasicMaterial(spriteSheetParams)
+        )
+      } else {
+        console.warn("Footage item doesn't belong to an atlas")
+      }
+    }
+    if (!mesh) {
+      const basicParams = params as MeshBasicMaterialParameters
+      basicParams.map = __getCachedTexture(content)
+      mesh = new Mesh(geometry, new MeshBasicMaterial(basicParams))
+    }
   }
-  const mesh = new Mesh(geometry, new MeshBasicMaterial(params))
   return mesh
 }
 
 async function loadCompScene(scene: Scene, comp: CompItem) {
-  const defaultCamera2D = camera = new OrthographicCamera(0, await comp.width, 0, await comp.height, -1000, 1000)
+  const defaultCamera2D = (camera = new OrthographicCamera(
+    0,
+    await comp.width,
+    0,
+    await comp.height,
+    -1000,
+    1000
+  ))
   scene.add(defaultCamera2D)
-  const activeCameras: (Camera | null)[] = [null, defaultCamera2D]
+  const activeCameras: Array<Camera | null> = [null, defaultCamera2D]
   scene.userData.activeCameras = activeCameras
 
   const numLayers = await comp.numLayers
@@ -292,15 +463,15 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
     node = null
     isLayer3D = false
     hasAnchor = false
-    if (!(await layer.active)) {
+    if (!(await layer.enabled)) {
       continue
     }
     if (await layer.hasVideo) {
       const avLayer = layer as AVLayer
       isLayer3D = await avLayer.threeDLayer
       hasAnchor = true
-      const source = (await avLayer.source)
-      if (await source.typeName === 'Composition') {
+      const source = await avLayer.source
+      if ((await source.typeName) === 'Composition') {
         const subScene = new Scene()
         __queueSubComp(source as CompItem, subScene)
         node = subScene
@@ -314,7 +485,13 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
             node = await createLayerMesh(avLayer, source, isLayer3D, color)
           } else if (mainSource.hasOwnProperty('file')) {
             const footageSource = mainSource as FootageSource
-            node = await createLayerMesh(avLayer, source, isLayer3D, await mainSource.file, await footageSource.hasAlpha)
+            node = await createLayerMesh(
+              avLayer,
+              source,
+              isLayer3D,
+              await mainSource.file,
+              await footageSource.hasAlpha
+            )
           } else {
             error('Unsupported source type')
             node = null
@@ -338,7 +515,9 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
       node.position.fromArray(posArr)
       const scale = await getAEProperty(transform, 'Scale')
       const scaleArr = await syncArray(await scale.value)
-      if (scaleArr[2] === 0) scaleArr[2] = 1
+      if (scaleArr[2] === 0) {
+        scaleArr[2] = 1
+      }
       for (let i = 0; i < scaleArr.length; i++) {
         scaleArr[i] *= 0.01
       }
@@ -347,9 +526,9 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
         const rotationX = await getAEProperty(transform, 'X Rotation')
         const rotationY = await getAEProperty(transform, 'Y Rotation')
         const rotationZ = await getAEProperty(transform, 'Z Rotation')
-        node.rotation.x = await rotationX.value * __degToRad
-        node.rotation.y = await rotationY.value * __degToRad
-        node.rotation.z = await rotationZ.value * __degToRad
+        node.rotation.x = (await rotationX.value) * __degToRad
+        node.rotation.y = (await rotationY.value) * __degToRad
+        node.rotation.z = (await rotationZ.value) * __degToRad
         const orientationAe = await getAEProperty(transform, 'Orientation')
         const orientationArr = await syncArray(await orientationAe.value)
         for (let i = 0; i < orientationArr.length; i++) {
@@ -369,7 +548,9 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
       if (hasAnchor) {
         const anchorPointAe = await getAEProperty(transform, 'Anchor Point')
         const anchorPointArr = await syncArray(await anchorPointAe.value)
-        const anchorPoint = new Vector3().fromArray(anchorPointArr).multiplyScalar(-1)
+        const anchorPoint = new Vector3()
+          .fromArray(anchorPointArr)
+          .multiplyScalar(-1)
         node.userData.anchorPoint = anchorPoint
       }
 
@@ -383,7 +564,9 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
         let p = localNode.position
         matrix.multiply(__tempMatrix.makeTranslation(p.x, p.y, p.z))
         if (localNode.userData.orientation) {
-          matrix.multiply(__tempMatrix.makeRotationFromEuler(localNode.userData.orientation))
+          matrix.multiply(
+            __tempMatrix.makeRotationFromEuler(localNode.userData.orientation)
+          )
         }
         matrix.multiply(__tempMatrix.makeRotationFromEuler(localNode.rotation))
         p = localNode.scale
@@ -402,7 +585,9 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
 }
 
 function loop() {
-  if (afterEffects && !_initedComp) initAfterEffects()
+  if (afterEffects && !_initedComp) {
+    initAfterEffects()
+  }
   sphere.rotation.y += 0.001
   if (rootScene.userData.activeCameras && active) {
     rootScene.userData.activeCameras.forEach(camera => {
@@ -417,7 +602,6 @@ function loop() {
 // Start loop
 requestAnimationFrame(loop)
 
-
 console.log('Initiating AfterEffects connection...')
 CSLibrary.evalScript('resetCaches()', result => {
   CSLibrary.evalScript('describe(app)', result => {
@@ -428,8 +612,8 @@ CSLibrary.evalScript('resetCaches()', result => {
 
 window.addEventListener('focus', event => {
   const obj = document.querySelector('#isActiveExt')!
-  if (!parseInt(obj['value'])) {
-    obj['value'] = 1
+  if (!parseInt(obj.value, 10)) {
+    obj.value = 1
     active = true
     console.log('Extension is active!')
   }
@@ -437,8 +621,8 @@ window.addEventListener('focus', event => {
 
 window.addEventListener('blur', event => {
   const obj = document.querySelector('#isActiveExt')!
-  if (parseInt(obj['value'])) {
-    obj['value'] = 0
+  if (parseInt(obj.value, 10)) {
+    obj.value = 0
     active = false
     console.log('Extension is deactive!')
   }
