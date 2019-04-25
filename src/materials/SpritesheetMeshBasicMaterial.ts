@@ -1,29 +1,37 @@
 import {
   RawShaderMaterial,
   ShaderMaterialParameters,
-  Texture,
-  Uniform
+  Texture
 } from 'three'
 import { Matrix2DUniformInterface } from '~/math/Matrix2DUniformInterface'
+
+import { addTexture2DUniforms } from '../utils/materials'
 
 import fragmentShader from './frag.glsl'
 import vertexShader from './vert.glsl'
 
-export interface SpritesheetMaterialParameters
-  extends ShaderMaterialParameters {
+export interface SpritesheetMaterialOptions {
   mapTexture: Texture
   matrix: Matrix2DUniformInterface
+  materialParams?: ShaderMaterialParameters
 }
 
 export class SpritesheetMeshBasicMaterial extends RawShaderMaterial {
-  constructor(parameters: SpritesheetMaterialParameters) {
-    parameters.fragmentShader = fragmentShader
-    parameters.vertexShader = vertexShader
-    parameters.uniforms = {
-      mapTexture: new Uniform('mapTexture', parameters.mapTexture),
-      mapUvMat23a: new Uniform('mapUvMat23a', parameters.matrix.uniformVec3a),
-      mapUvMat23b: new Uniform('mapUvMat23b', parameters.matrix.uniformVec3b)
+  parameters: ShaderMaterialParameters
+  mapTexture: Texture
+  matrix2DInterface: Matrix2DUniformInterface
+  constructor(options: SpritesheetMaterialOptions) {
+    const uniforms = {}
+    const parameters = {
+      ...options.materialParams,
+      fragmentShader,
+      vertexShader,
+      uniforms
     }
+    addTexture2DUniforms(uniforms, options.mapTexture, options.matrix, '')
     super(parameters)
+    this.parameters = parameters
+    this.matrix2DInterface = options.matrix
+    this.mapTexture = options.mapTexture
   }
 }

@@ -23,12 +23,15 @@ import {
   WebGLRenderer
 } from 'three'
 
+import { MaskedSpritesheetMeshBasicMaterial } from './materials/MaskedSpritesheetMeshBasicMaterial';
 import {
-  SpritesheetMaterialParameters,
   SpritesheetMeshBasicMaterial
 } from './materials/SpritesheetMeshBasicMaterial'
 import { Matrix2DUniformInterface } from './math/Matrix2DUniformInterface'
+import { getAERectGeometry } from './utils/geometry';
+import { capitalize, pluralize } from './utils/strings'
 import { CSInterface, UIColor } from './vendor/CSInterface'
+import { Matrix2D } from './vendor/easeljs/Matrix2D';
 
 const CSLibrary = new CSInterface()
 
@@ -89,19 +92,6 @@ const renderer = new WebGLRenderer({
   // powerPreference: "high-performance"
   // powerPreference: "low-power"
 })
-
-class AERectGeometry extends PlaneBufferGeometry {
-  constructor(width: number, height: number) {
-    super(width, height)
-    const halfWidth = width * 0.5
-    const halfHeight = height * 0.5
-    const array = this.attributes.position.array as number[]
-    for (let i = 0; i < array.length; i += 3) {
-      array[i] += halfWidth
-      array[i + 1] += halfHeight
-    }
-  }
-}
 
 function checkWebGLSupport() {
   try {
@@ -208,18 +198,6 @@ async function syncArrayLike(asyncArr: any[]) {
   return arr
 }
 
-function capitalize(str: string) {
-  return str.charAt(0).toUpperCase() + str.slice(1)
-}
-
-function pluralize(str: string) {
-  if (str.charAt(str.length - 1) === 'y') {
-    return str.slice(0, str.length - 1) + 'ies'
-  } else {
-    return str + 's'
-  }
-}
-
 async function getAEProperty(base: any, namePath: string) {
   return findCollectionItemPath(base, 'property', namePath)
 }
@@ -291,9 +269,18 @@ async function initAfterEffects() {
     )
     return
   }
+  const mainComp = maybeComp as CompItem
   const scene = new Scene()
   rootScene = scene
-  await loadCompScene(scene, maybeComp as CompItem)
+  await loadCompScene(scene, mainComp)
+  console.log('finished building comp')
+  const projPath = await (await afterEffects.project).file
+  const atlasCompName = await mainComp.name
+  const scenePath = projPath + '.' + atlasCompName + '.three.json'
+  const dataString = JSON.stringify(rootScene.toJSON())
+  console.log('save json (' + dataString.length + ' bytes) to ' + scenePath)
+  const result = cep.fs.writeFile(scenePath, dataString)
+  console.log(result)
 }
 
 class QueuedCompScene {
@@ -334,7 +321,7 @@ async function createLayerMesh(
 ) {
   const sourceWidth = await source.width
   const sourceHeight = await source.height
-  const geometry = new AERectGeometry(sourceWidth, sourceHeight)
+  const geometry = getAERectGeometry()
   // const opacity = await findCollectionItemPath(avLayer, "property", "Layer Styles.Blending Options.Advanced Blending.Fill Opacity")
   const opacity = await getAEProperty(avLayer, 'Transform.Opacity')
   const opacityVal = (await opacity.value) * 0.01
@@ -354,7 +341,6 @@ async function createLayerMesh(
     mesh = new Mesh(geometry, new MeshBasicMaterial(basicParams))
   } else {
     if (__useAtlases) {
-      const spriteSheetParams = params as SpritesheetMaterialParameters
       const usedIn = (await syncArray(await source.usedIn)) as CompItem[]
       let atlasComp: CompItem | undefined
       let indexToRemember = -1
@@ -388,7 +374,6 @@ async function createLayerMesh(
             )
           })
         }
-        spriteSheetParams.mapTexture = __getCachedTexture(atlasPath)
         const numAtlasLayers = await atlasComp.numLayers
         let atlasLayer: AVLayer | undefined
         for (let i = 1; i <= numAtlasLayers && !atlasLayer; i++) {
@@ -422,10 +407,13 @@ async function createLayerMesh(
           anchorArr[1] / sourceHeight
         )
         // debugger
-        spriteSheetParams.matrix = mat23
         mesh = new Mesh(
           geometry,
-          new SpritesheetMeshBasicMaterial(spriteSheetParams)
+          new SpritesheetMeshBasicMaterial({
+            mapTexture: __getCachedTexture(atlasPath),
+            matrix: mat23,
+            materialParams: params
+          })
         )
       } else {
         console.warn("Footage item doesn't belong to an atlas")
@@ -437,15 +425,18 @@ async function createLayerMesh(
       mesh = new Mesh(geometry, new MeshBasicMaterial(basicParams))
     }
   }
+  mesh.userData.resolution = new Vector3(sourceWidth, sourceHeight, 1)
   return mesh
 }
 
 async function loadCompScene(scene: Scene, comp: CompItem) {
+  const compWidth = await comp.width
+  const compHeight = await comp.height
   const defaultCamera2D = (camera = new OrthographicCamera(
     0,
-    await comp.width,
+    compWidth,
     0,
-    await comp.height,
+    compHeight,
     -1000,
     1000
   ))
@@ -458,16 +449,19 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
   let node: Object3D | null = null
   let isLayer3D = false
   let hasAnchor = false
+  let maskLayer: AVLayer | undefined
+  let maskNode: Mesh | undefined
   for (let index = 1; index <= numLayers; index++) {
     const layer = await (await comp.layer)(index)
     node = null
     isLayer3D = false
     hasAnchor = false
-    if (!(await layer.enabled)) {
+    const hasVideo = await layer.hasVideo
+    const avLayer = hasVideo ? (layer as AVLayer) : undefined
+    if (!(await layer.enabled) && !(avLayer && (await avLayer.isTrackMatte))) {
       continue
     }
-    if (await layer.hasVideo) {
-      const avLayer = layer as AVLayer
+    if (avLayer) {
       isLayer3D = await avLayer.threeDLayer
       hasAnchor = true
       const source = await avLayer.source
@@ -555,7 +549,6 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
       }
 
       const matrix = node.matrix
-      const prematrix = new Matrix4()
       const localNode = node
       // TODO get a mathematician to write a more efficient matrix composer method that takes achnor point, orientation, position, rotation and scale
       // current implementation is slower but accurate
@@ -575,7 +568,34 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
         if (p) {
           matrix.multiply(__tempMatrix.makeTranslation(p.x, p.y, p.z))
         }
+        p = localNode.userData.resolution
+        if (p) {
+          matrix.multiply(__tempMatrix.makeScale(p.x, p.y, p.z))
+        }
       }
+      node.updateMatrix()
+
+      if (maskLayer && maskNode) {
+        if (maskNode.material instanceof SpritesheetMeshBasicMaterial && node instanceof Mesh && node.material instanceof MeshBasicMaterial) {
+          maskNode.updateMatrix()
+          const content2DMatrix = new Matrix2DUniformInterface().fromObject3D(node)
+          const mask2DMatrix = new Matrix2DUniformInterface().fromObject3D(maskNode)
+
+          content2DMatrix.matrix.invert().appendMatrix(mask2DMatrix.matrix)
+          content2DMatrix.updateUniforms()
+          maskNode.material = new MaskedSpritesheetMeshBasicMaterial({
+            mapTexture: maskNode.material.mapTexture,
+            matrix: maskNode.material.matrix2DInterface,
+            contentMapTexture: node.material.map!,
+            contentMatrix: content2DMatrix,
+            materialParams: maskNode.material.parameters
+          })
+        }
+        node.visible = false
+      }
+
+      maskLayer = avLayer && (await avLayer.isTrackMatte) ? avLayer : undefined
+      maskNode = maskLayer ? (node as Mesh) : undefined
     }
   }
   if (__subCompsQueue.length > 0) {
