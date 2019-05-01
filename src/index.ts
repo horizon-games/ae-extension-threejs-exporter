@@ -475,7 +475,6 @@ async function createLayerMesh(
     }
   }
   mesh.userData.resolution = new Vector3(sourceWidth, sourceHeight, 1)
-  mesh.name = await avLayer.name
   return mesh
 }
 
@@ -553,6 +552,7 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
     }
     if (node) {
       scene.add(node)
+      node.name = await layer.name
       const transform = await getAEProperty(layer, 'Transform')
       const position = await getAEProperty(transform, 'Position')
       const posArr = await syncArray(await position.value)
