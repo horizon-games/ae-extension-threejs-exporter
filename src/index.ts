@@ -18,6 +18,7 @@ import {
   Scene,
   SphereBufferGeometry,
   Texture,
+  Vector2,
   Vector3,
   Vector4,
   WebGLRenderer
@@ -25,7 +26,7 @@ import {
 
 import { MaskedSpritesheetMeshBasicMaterial } from './materials/MaskedSpritesheetMeshBasicMaterial';
 import {
-  SpritesheetMeshBasicMaterial
+  EffectProperties, SpritesheetMeshBasicMaterial, SupportedEffects
 } from './materials/SpritesheetMeshBasicMaterial'
 import { Matrix2DUniformInterface } from './math/Matrix2DUniformInterface'
 import { getAERectGeometry } from './utils/geometry';
@@ -258,6 +259,28 @@ async function findCollectionItem(
   error(messageLines.join('\n'))
 }
 
+async function collectCollectionNames(
+  base:any,
+  collectionName:string
+) {
+  const numName = 'num' + pluralize(capitalize(collectionName))
+  if (
+    !base ||
+    !base.hasOwnProperty(numName) ||
+    !base.hasOwnProperty(collectionName)
+  ) {
+    error('Collection is invalid.')
+  }
+  const collection = (await base[collectionName]) as (i: number) => any
+  const num = await base[numName]
+  const names: string[] = []
+  for (let i = 1; i <= num; i++) {
+    const item = await collection(i)
+    names.push(await item.name)
+  }
+  return names
+}
+
 let _initedComp = false
 async function initAfterEffects() {
   _initedComp = true
@@ -387,6 +410,31 @@ async function createLayerMesh(
           }
         }
 
+        const effectProperties:EffectProperties = new Map<SupportedEffects, Map<string, number | Vector2 | Vector3 | Vector4 | Color>>()
+
+        if(await hasAEProperty(avLayer, 'Effects')) {
+          const effects = await getAEProperty(avLayer, 'Effects')
+          const effectNames = await collectCollectionNames(effects, 'property')
+          for (const effectName of effectNames) {
+            if(effectName === "Channel Mixer") {
+              const effect = await getAEProperty(effects, effectName)
+              const channelNamesIn = ['Red', 'Green', 'Blue']
+              const channelNamesOut = ['Red', 'Green', 'Blue', 'Const']
+              const values:number[] = []
+              for (let iIn = 0; iIn < channelNamesIn.length; iIn++) {
+                for (let iOut = 0; iOut < channelNamesOut.length; iOut++) {
+                  values.push(await (await getAEProperty(effect, channelNamesIn[iIn]+'-'+channelNamesOut[iOut])).value / 100)
+                }
+              }
+              const props = new Map<string, Color>()
+              props.set('red', new Color(values[0], values[4], values[8]))
+              props.set('green', new Color(values[1], values[5], values[9]))
+              props.set('blue', new Color(values[2], values[6], values[10]))
+              effectProperties.set("channelMixer", props)
+            }
+          }
+        }
+
         const transform = await getAEProperty(atlasLayer, 'Transform')
         const anchor = await getAEProperty(transform, 'Anchor Point')
         const anchorArr = await syncArray(await anchor.value)
@@ -412,7 +460,8 @@ async function createLayerMesh(
           new SpritesheetMeshBasicMaterial({
             mapTexture: __getCachedTexture(atlasPath),
             matrix: mat23,
-            materialParams: params
+            materialParams: params,
+            effectProperties
           })
         )
       } else {
@@ -426,6 +475,7 @@ async function createLayerMesh(
     }
   }
   mesh.userData.resolution = new Vector3(sourceWidth, sourceHeight, 1)
+  mesh.name = await avLayer.name
   return mesh
 }
 
