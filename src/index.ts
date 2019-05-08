@@ -641,7 +641,7 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
             materialParams: maskNode.material.parameters
           })
         }
-        node.visible = false
+        scene.remove(node)
       }
 
       maskLayer = avLayer && (await avLayer.isTrackMatte) ? avLayer : undefined
