@@ -1,5 +1,7 @@
 import { PlaneBufferGeometry } from 'three';
 
+import AENineSliceRectGeometry from '../meshes/AENineSliceRectGeometry';
+
 class AERectGeometry extends PlaneBufferGeometry {
   constructor(width: number, height: number) {
     super(width, height)
@@ -14,10 +16,14 @@ class AERectGeometry extends PlaneBufferGeometry {
 }
 
 let aeRectGeometry:AERectGeometry
+let aeNineSliceRectGeometry:AENineSliceRectGeometry
 
-export function getAERectGeometry() { 
+export function getAERectGeometry(nineSlice = false) { 
   if(!aeRectGeometry) {
     aeRectGeometry = new AERectGeometry(1, 1)
   }
-  return aeRectGeometry
+  if(!aeNineSliceRectGeometry) {
+    aeNineSliceRectGeometry = new AENineSliceRectGeometry()
+  }
+  return nineSlice ? aeNineSliceRectGeometry : aeRectGeometry
 }

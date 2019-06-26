@@ -1,5 +1,6 @@
 precision highp float;
 uniform sampler2D mapTexture;
+uniform float opacity;
 varying vec2 vUv;
 
 #ifdef USE_MASK_CONTENT
@@ -24,4 +25,5 @@ void main() {
   vec3 channelMixerLevels = gl_FragColor.rgb;
   gl_FragColor.rgb = channelMixerRed * channelMixerLevels.r + channelMixerGreen * channelMixerLevels.g + channelMixerBlue * channelMixerLevels.b;
   #endif
+  gl_FragColor.a *= opacity;
 }

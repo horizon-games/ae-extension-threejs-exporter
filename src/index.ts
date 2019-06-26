@@ -1,23 +1,34 @@
 /// <reference types="types-for-adobe/AfterEffects/2018"/>"
 import {
   BackSide,
+  ByteType,
   Camera,
   Color,
+  DataTexture,
   Euler,
   ImageUtils,
+  LinearFilter,
+  Material,
   MaterialParameters,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshBasicMaterialParameters,
+  NearestFilter,
   Object3D,
   OrthographicCamera,
   PCFShadowMap,
   PerspectiveCamera,
   PlaneBufferGeometry,
+  RawShaderMaterial,
+  RepeatWrapping,
+  RGBAFormat,
   Scene,
+  ShaderMaterial,
   SphereBufferGeometry,
   Texture,
+  UnsignedByteType,
+  UVMapping,
   Vector2,
   Vector3,
   Vector4,
@@ -300,6 +311,40 @@ async function initAfterEffects() {
   const projPath = await (await afterEffects.project).file
   const atlasCompName = await mainComp.name
   const scenePath = projPath + '.' + atlasCompName + '.three.json'
+  const tempTextures = new Map<string, Texture>()
+  function getTempTexture(url:string) {
+    if(!tempTextures.has(url)) {
+      const t = 4 * 4 * 4
+      const arr = new Uint8Array(t)
+      const color = new Color().setHSL(Math.random(), 1, 0.6)
+      for (let i = 0; i < t; i+=4) {
+        arr[i] = ~~(color.r * 255)
+        arr[i+1] = ~~(color.g * 255)
+        arr[i+2] = ~~(color.b * 255)
+        arr[i+3] = 1
+      }
+      tempTextures.set(url, new DataTexture(arr, 4, 4, RGBAFormat, UnsignedByteType, UVMapping,RepeatWrapping, RepeatWrapping, NearestFilter, NearestFilter))
+    }
+    return tempTextures.get(url)
+  }
+  rootScene.traverse(o => {
+    if(o instanceof Mesh) {
+      const mat = o.material
+      if(mat instanceof ShaderMaterial) {
+        for(const key in mat.uniforms) {
+          const uniform = mat.uniforms[key]
+          const value = uniform.value
+          if(value instanceof Texture) {
+            const url = value.image.src.split('/')
+            mat.userData['uniform-'+key] = url[url.length-1]
+            uniform.value = undefined
+            // uniform.value = getTempTexture(url[url.length-1])
+          }
+        }
+      }
+    }
+  })
+  // debugger
   const dataString = JSON.stringify(rootScene.toJSON())
   console.log('save json (' + dataString.length + ' bytes) to ' + scenePath)
   const result = cep.fs.writeFile(scenePath, dataString)
@@ -344,7 +389,6 @@ async function createLayerMesh(
 ) {
   const sourceWidth = await source.width
   const sourceHeight = await source.height
-  const geometry = getAERectGeometry()
   // const opacity = await findCollectionItemPath(avLayer, "property", "Layer Styles.Blending Options.Advanced Blending.Fill Opacity")
   const opacity = await getAEProperty(avLayer, 'Transform.Opacity')
   const opacityVal = (await opacity.value) * 0.01
@@ -361,7 +405,7 @@ async function createLayerMesh(
   if (content instanceof Color) {
     const basicParams = params as MeshBasicMaterialParameters
     basicParams.color = content
-    mesh = new Mesh(geometry, new MeshBasicMaterial(basicParams))
+    mesh = new Mesh(getAERectGeometry(), new MeshBasicMaterial(basicParams))
   } else {
     if (__useAtlases) {
       const usedIn = (await syncArray(await source.usedIn)) as CompItem[]
@@ -416,21 +460,63 @@ async function createLayerMesh(
           const effects = await getAEProperty(avLayer, 'Effects')
           const effectNames = await collectCollectionNames(effects, 'property')
           for (const effectName of effectNames) {
-            if(effectName === "Channel Mixer") {
-              const effect = await getAEProperty(effects, effectName)
-              const channelNamesIn = ['Red', 'Green', 'Blue']
-              const channelNamesOut = ['Red', 'Green', 'Blue', 'Const']
-              const values:number[] = []
-              for (let iIn = 0; iIn < channelNamesIn.length; iIn++) {
-                for (let iOut = 0; iOut < channelNamesOut.length; iOut++) {
-                  values.push(await (await getAEProperty(effect, channelNamesIn[iIn]+'-'+channelNamesOut[iOut])).value / 100)
+            const effect = await getAEProperty(effects, effectName)
+            let props:Map<string, number | Color | Vector2 | Vector3 | Vector4>
+            switch(effectName) {
+              case "Channel Mixer":
+                const channelNamesIn = ['Red', 'Green', 'Blue']
+                const channelNamesOut = ['Red', 'Green', 'Blue', 'Const']
+                const values:number[] = []
+                for (let iIn = 0; iIn < channelNamesIn.length; iIn++) {
+                  for (let iOut = 0; iOut < channelNamesOut.length; iOut++) {
+                    values.push(await (await getAEProperty(effect, channelNamesIn[iIn]+'-'+channelNamesOut[iOut])).value / 100)
+                  }
                 }
-              }
-              const props = new Map<string, Color>()
-              props.set('red', new Color(values[0], values[4], values[8]))
-              props.set('green', new Color(values[1], values[5], values[9]))
-              props.set('blue', new Color(values[2], values[6], values[10]))
-              effectProperties.set("channelMixer", props)
+                props = new Map<string, Color>()
+                props.set('red', new Color(values[0], values[4], values[8]))
+                props.set('green', new Color(values[1], values[5], values[9]))
+                props.set('blue', new Color(values[2], values[6], values[10]))
+                effectProperties.set("channelMixer", props)
+                break
+              case "Grid":
+                const pointAnchor = await(await getAEProperty(effect, 'Anchor')).value
+                const pointCorner = await(await getAEProperty(effect, 'Corner')).value
+                props = new Map<string, Vector4>()
+                const paddingScale = 1
+                const textureWidth = await avLayer.width
+                const textureHeight = await avLayer.height
+                const ltrb = new Vector4(await pointAnchor[0], await pointAnchor[1], await pointCorner[0], await pointCorner[1])
+                props.set('size', new Vector2(100, 100))
+                props.set('u', new Vector4(
+                    0,
+                    ltrb.x / textureWidth,
+                    ltrb.z / textureWidth,
+                    1
+                  )
+                )
+                props.set('v', new Vector4(
+                    0,
+                    ltrb.y / textureHeight,
+                    ltrb.w / textureHeight,
+                    1
+                  )
+                )
+                props.set('xPadding', new Vector4(
+                    -ltrb.x * paddingScale,
+                    0,
+                    0,
+                    (textureWidth - ltrb.z) * paddingScale
+                  )
+                )
+                props.set('yPadding', new Vector4(
+                    ltrb.y * paddingScale,
+                    0,
+                    0,
+                    -(textureHeight - ltrb.w) * paddingScale
+                  )
+                )
+                effectProperties.set("nineSlice", props)
+                break
             }
           }
         }
@@ -454,14 +540,22 @@ async function createLayerMesh(
           anchorArr[0] / sourceWidth,
           anchorArr[1] / sourceHeight
         )
+        const userData = {
+          imageWidth: sourceWidth,
+          imageHeight: sourceHeight,
+          atlasWidth,
+          atlasHeight,
+          nineSlice: effectProperties.has('nineSlice')
+        }
         // debugger
         mesh = new Mesh(
-          geometry,
+          getAERectGeometry(effectProperties.has('nineSlice')),
           new SpritesheetMeshBasicMaterial({
             mapTexture: __getCachedTexture(atlasPath),
             matrix: mat23,
             materialParams: params,
-            effectProperties
+            effectProperties,
+            userData
           })
         )
       } else {
@@ -471,7 +565,7 @@ async function createLayerMesh(
     if (!mesh) {
       const basicParams = params as MeshBasicMaterialParameters
       basicParams.map = __getCachedTexture(content)
-      mesh = new Mesh(geometry, new MeshBasicMaterial(basicParams))
+      mesh = new Mesh(getAERectGeometry(), new MeshBasicMaterial(basicParams))
     }
   }
   mesh.userData.resolution = new Vector3(sourceWidth, sourceHeight, 1)
@@ -619,7 +713,8 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
           matrix.multiply(__tempMatrix.makeTranslation(p.x, p.y, p.z))
         }
         p = localNode.userData.resolution
-        if (p) {
+        const isNineSlice = (localNode instanceof Mesh && localNode.material instanceof Material && localNode.material.userData.nineSlice)
+        if (p && !isNineSlice) {
           matrix.multiply(__tempMatrix.makeScale(p.x, p.y, p.z))
         }
       }
