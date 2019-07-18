@@ -12,18 +12,19 @@ import {
 } from 'three'
 import { Matrix2DUniformInterface } from '~/math/Matrix2DUniformInterface'
 
-import { addTexture2DUniforms, addUniform } from '../utils/materials'
-import { capitalize } from '../utils/strings';
+import { addTexture2DUniforms, addUniform } from '../../utils/materials'
+import { capitalize } from '../../utils/strings';
 
 import fragmentShader from './frag.glsl'
 import vertexShader from './vert.glsl'
 
 //nineSlice is actually a Grid effect
-export type SupportedEffects = 'channelMixer' | 'nineSlice'
+export type SupportedEffects = 'colorOverlay' | 'channelMixer' | 'nineSlice'
 export type EffectProperties = Map<SupportedEffects, Map<string, number | Vector2 | Vector3 | Vector4 | Color>>
 
 export interface SpritesheetMaterialOptions {
-  mapTexture: Texture
+  mapTexture: Texture,
+  size: Vector2,
   matrix: Matrix2DUniformInterface
   materialParams?: ShaderMaterialParameters
   effectProperties?: EffectProperties
@@ -32,6 +33,7 @@ export interface SpritesheetMaterialOptions {
 
 export class SpritesheetMeshBasicMaterial extends RawShaderMaterial {
   parameters: ShaderMaterialParameters
+  size: Vector2
   mapTexture: Texture
   matrix2DInterface: Matrix2DUniformInterface
   constructor(options: SpritesheetMaterialOptions) {
@@ -56,10 +58,12 @@ export class SpritesheetMeshBasicMaterial extends RawShaderMaterial {
         })
       })
     }
+    addUniform(uniforms, 'size', options.size)
     super(parameters)
     this.parameters = parameters
     this.matrix2DInterface = options.matrix
     this.mapTexture = options.mapTexture
+    this.size = options.size
     this.userData = options.userData
   }
 }

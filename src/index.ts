@@ -35,10 +35,10 @@ import {
   WebGLRenderer
 } from 'three'
 
-import { MaskedSpritesheetMeshBasicMaterial } from './materials/MaskedSpritesheetMeshBasicMaterial';
+import { MaskedSpritesheetMeshBasicMaterial } from './materials/SpritesheetMeshBasicMaterial/MaskedSpritesheetMeshBasicMaterial';
 import {
   EffectProperties, SpritesheetMeshBasicMaterial, SupportedEffects
-} from './materials/SpritesheetMeshBasicMaterial'
+} from './materials/SpritesheetMeshBasicMaterial/SpritesheetMeshBasicMaterial'
 import { Matrix2DUniformInterface } from './math/Matrix2DUniformInterface'
 import { getAERectGeometry } from './utils/geometry';
 import { capitalize, pluralize } from './utils/strings'
@@ -456,6 +456,26 @@ async function createLayerMesh(
 
         const effectProperties:EffectProperties = new Map<SupportedEffects, Map<string, number | Vector2 | Vector3 | Vector4 | Color>>()
 
+        let color:Color | undefined 
+        if(await hasAEProperty(avLayer, 'Layer Styles')) {
+          const styles = await getAEProperty(avLayer, 'Layer Styles')
+          const styleNames = await collectCollectionNames(styles, 'property')
+          for (const styleName of styleNames) {
+            const style = await getAEProperty(styles, styleName)
+            if(await style.enabled) {
+              let props:Map<string, number | Color | Vector2 | Vector3 | Vector4>
+              switch(styleName) {
+                case "Color Overlay":
+                  const colorProp = await(await getAEProperty(style, 'Color')).value
+                  props = new Map<string, Vector4>()
+                  color = new Color(await colorProp[0], await colorProp[1], await colorProp[2])
+                  props.set('color', color)
+                  effectProperties.set('colorOverlay', props)
+              }
+            }
+          }
+        }
+        let paddingLTRB:Vector4 | undefined 
         if(await hasAEProperty(avLayer, 'Effects')) {
           const effects = await getAEProperty(avLayer, 'Effects')
           const effectNames = await collectCollectionNames(effects, 'property')
@@ -485,34 +505,33 @@ async function createLayerMesh(
                 const paddingScale = 1
                 const textureWidth = await avLayer.width
                 const textureHeight = await avLayer.height
-                const ltrb = new Vector4(await pointAnchor[0], await pointAnchor[1], await pointCorner[0], await pointCorner[1])
-                props.set('size', new Vector2(100, 100))
+                paddingLTRB = new Vector4(await pointAnchor[0], await pointAnchor[1], await pointCorner[0], await pointCorner[1])
                 props.set('u', new Vector4(
                     0,
-                    ltrb.x / textureWidth,
-                    ltrb.z / textureWidth,
+                    paddingLTRB.x / textureWidth,
+                    paddingLTRB.z / textureWidth,
                     1
                   )
                 )
                 props.set('v', new Vector4(
-                    0,
-                    ltrb.y / textureHeight,
-                    ltrb.w / textureHeight,
-                    1
+                    1,
+                    1 - paddingLTRB.y / textureHeight,
+                    1 - paddingLTRB.w / textureHeight,
+                    0
                   )
                 )
                 props.set('xPadding', new Vector4(
-                    -ltrb.x * paddingScale,
+                    -paddingLTRB.x * paddingScale,
                     0,
                     0,
-                    (textureWidth - ltrb.z) * paddingScale
+                    (textureWidth - paddingLTRB.z) * paddingScale
                   )
                 )
                 props.set('yPadding', new Vector4(
-                    ltrb.y * paddingScale,
+                    paddingLTRB.y * paddingScale,
                     0,
                     0,
-                    -(textureHeight - ltrb.w) * paddingScale
+                    -(textureHeight - paddingLTRB.w) * paddingScale
                   )
                 )
                 effectProperties.set("nineSlice", props)
@@ -520,6 +539,7 @@ async function createLayerMesh(
             }
           }
         }
+
 
         const transform = await getAEProperty(atlasLayer, 'Transform')
         const anchor = await getAEProperty(transform, 'Anchor Point')
@@ -548,9 +568,15 @@ async function createLayerMesh(
           nineSlice: effectProperties.has('nineSlice')
         }
         // debugger
+        const size = new Vector2(sourceWidth, sourceHeight)
+        if(effectProperties.has('nineSlice') && paddingLTRB) {
+          size.x -= paddingLTRB.x + (sourceWidth - paddingLTRB.z)
+          size.y -= paddingLTRB.y + (sourceHeight - paddingLTRB.w)
+        }
         mesh = new Mesh(
           getAERectGeometry(effectProperties.has('nineSlice')),
           new SpritesheetMeshBasicMaterial({
+            size,
             mapTexture: __getCachedTexture(atlasPath),
             matrix: mat23,
             materialParams: params,
@@ -712,11 +738,11 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
         if (p) {
           matrix.multiply(__tempMatrix.makeTranslation(p.x, p.y, p.z))
         }
-        p = localNode.userData.resolution
-        const isNineSlice = (localNode instanceof Mesh && localNode.material instanceof Material && localNode.material.userData.nineSlice)
-        if (p && !isNineSlice) {
-          matrix.multiply(__tempMatrix.makeScale(p.x, p.y, p.z))
-        }
+        // p = localNode.userData.resolution
+        // const isNineSlice = (localNode instanceof Mesh && localNode.material instanceof Material && localNode.material.userData.nineSlice)
+        // if (p && !isNineSlice) {
+        //   matrix.multiply(__tempMatrix.makeScale(p.x, p.y, p.z))
+        // }
       }
       node.updateMatrix()
 
@@ -729,6 +755,7 @@ async function loadCompScene(scene: Scene, comp: CompItem) {
           content2DMatrix.matrix.invert().appendMatrix(mask2DMatrix.matrix)
           content2DMatrix.updateUniforms()
           maskNode.material = new MaskedSpritesheetMeshBasicMaterial({
+            size: maskNode.material.size,
             mapTexture: maskNode.material.mapTexture,
             matrix: maskNode.material.matrix2DInterface,
             contentMapTexture: node.material.map!,

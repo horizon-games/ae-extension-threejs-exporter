@@ -1,5 +1,10 @@
 precision highp float;
 uniform sampler2D mapTexture;
+
+#ifdef USE_EFFECT_COLOROVERLAY
+uniform vec3 colorOverlayColor;
+#endif
+
 uniform float opacity;
 varying vec2 vUv;
 
@@ -24,6 +29,9 @@ void main() {
   #ifdef USE_EFFECT_CHANNELMIXER
   vec3 channelMixerLevels = gl_FragColor.rgb;
   gl_FragColor.rgb = channelMixerRed * channelMixerLevels.r + channelMixerGreen * channelMixerLevels.g + channelMixerBlue * channelMixerLevels.b;
+  #endif
+  #ifdef USE_EFFECT_COLOROVERLAY
+  gl_FragColor.rgb *= colorOverlayColor;
   #endif
   gl_FragColor.a *= opacity;
 }

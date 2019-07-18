@@ -13,17 +13,14 @@
   varying vec2 vContentUv;
   #endif
 
-  #ifdef USE_EFFECT_NINESLICE
   attribute vec2 sizeMask;
+  uniform vec2 size;
+  #ifdef USE_EFFECT_NINESLICE
   attribute vec2 sliceSelector;
-  uniform vec2 nineSliceSize;
   uniform vec4 nineSliceU;
   uniform vec4 nineSliceV;
   uniform vec4 nineSliceXPadding;
   uniform vec4 nineSliceYPadding;
-  #else
-  attribute vec4 position;
-  attribute vec2 uv;
   #endif
 
   void main() {
@@ -33,7 +30,10 @@
     int iy = int(sliceSelector.y);
     vec2 uv = vec2(nineSliceU[ix], nineSliceV[iy]);
     vec2 padding = vec2(nineSliceXPadding[ix], nineSliceYPadding[iy]);
-    vec4 position = vec4(nineSliceSize * sizeMask + padding, 0.0, 1.0);
+    vec4 position = vec4(size * sizeMask + padding, 0.0, 1.0);
+    #else
+    vec2 uv = sizeMask;
+    vec4 position = vec4(size * sizeMask, 0.0, 1.0);
     #endif
 
     // vUv = uv;

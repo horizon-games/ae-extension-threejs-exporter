@@ -2,8 +2,8 @@ import {
   Texture
 } from 'three'
 
-import { Matrix2DUniformInterface } from '../math/Matrix2DUniformInterface'
-import { addTexture2DUniforms } from '../utils/materials';
+import { Matrix2DUniformInterface } from '../../math/Matrix2DUniformInterface'
+import { addTexture2DUniforms } from '../../utils/materials';
 
 import {
   SpritesheetMaterialOptions,
