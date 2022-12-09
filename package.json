@@ -16,7 +16,7 @@
     "three": "^0.103.0"
   },
   "devDependencies": {
-    "express": "^4.16.4",
+    "express": "^4.17.3",
     "fork-ts-checker-webpack-plugin": "^1.0.1",
     "glslify-import-loader": "^0.1.2",
     "glslify-loader": "^2.0.0",
